@@ -43,6 +43,11 @@ function TasksScreen({ route, setRoute, user }) {
     }) : t));
   };
 
+  const deleteTask = async (id) => {
+    await sb.from('tasks').delete().eq('id', id);
+    setTasks(ts => ts.filter(t => t.id !== id));
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-0)' }}>
       {/* Top bar */}
@@ -97,7 +102,7 @@ function TasksScreen({ route, setRoute, user }) {
       {/* Body */}
       <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px' }}>
         {tab === 'today' && <TaskMiniStats tasks={tasks} />}
-        <TaskInstructionList items={visible} setRoute={setRoute} onToggle={toggle} />
+        <TaskInstructionList items={visible} setRoute={setRoute} onToggle={toggle} onDelete={deleteTask} />
         {visible.length === 0 && (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--ink-3)' }}>
             <Icons.check size={28} stroke="var(--ink-4)" />
@@ -132,21 +137,22 @@ function TaskMiniBox({ label, value, tone }) {
   );
 }
 
-function TaskInstructionList({ items, setRoute, onToggle }) {
+function TaskInstructionList({ items, setRoute, onToggle, onDelete }) {
   if (items.length === 0) return null;
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
       {items.map((t, idx) => (
-        <TaskInstructionRow key={t.id} t={t} setRoute={setRoute} onToggle={onToggle} last={idx === items.length - 1} />
+        <TaskInstructionRow key={t.id} t={t} setRoute={setRoute} onToggle={onToggle} onDelete={onDelete} last={idx === items.length - 1} />
       ))}
     </div>
   );
 }
 
-function TaskInstructionRow({ t, setRoute, onToggle, last }) {
+function TaskInstructionRow({ t, setRoute, onToggle, onDelete, last }) {
   const D = window.KredeshData;
   const assignee = D.byId(D.users, t.assignee);
   const isMine = t.assignee === 'me';
+  const [confirming, setConfirming] = React.useState(false);
 
   const whenMatch = t.due?.match(/(\d{1,2}:\d{2}|\d{1,2}h\d{2}|EOD|TBC)/i);
   const dayMatch  = t.due?.match(/(today|tomorrow|wed|fri|mon|tue|thu|sat|sun)/i);
@@ -228,14 +234,31 @@ function TaskInstructionRow({ t, setRoute, onToggle, last }) {
         <Icons.inbox size={11} stroke="var(--ink-1)" /> Open chat
       </button>
 
-      {/* More */}
-      <button title="More" style={{
-        width: 26, height: 26, display: 'grid', placeItems: 'center',
-        background: 'transparent', border: 'none', borderRadius: 6,
-        color: 'var(--ink-3)', cursor: 'pointer', justifySelf: 'end',
-      }}>
-        <Icons.more size={14} stroke="var(--ink-3)" />
-      </button>
+      {/* Delete */}
+      <div style={{ justifySelf: 'end', display: 'flex', alignItems: 'center', gap: 4 }}>
+        {confirming ? (
+          <>
+            <button onClick={() => { onDelete(t.id); setConfirming(false); }} style={{
+              padding: '3px 8px', fontSize: 11, fontWeight: 600,
+              background: 'rgba(252,165,165,0.15)', border: '1px solid rgba(252,165,165,0.35)',
+              color: '#FCA5A5', borderRadius: 5, cursor: 'pointer',
+            }}>Delete</button>
+            <button onClick={() => setConfirming(false)} style={{
+              padding: '3px 6px', fontSize: 11,
+              background: 'transparent', border: 'none',
+              color: 'var(--ink-3)', cursor: 'pointer',
+            }}>Cancel</button>
+          </>
+        ) : (
+          <button onClick={() => setConfirming(true)} title="Delete task" style={{
+            width: 26, height: 26, display: 'grid', placeItems: 'center',
+            background: 'transparent', border: 'none', borderRadius: 6,
+            color: 'var(--ink-4)', cursor: 'pointer',
+          }}>
+            <Icons.trash size={14} stroke="var(--ink-4)" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

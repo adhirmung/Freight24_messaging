@@ -45,6 +45,7 @@ const Icons = {
   chart:    (p) => <Icon {...p}><path d="M3 16V8M8 16V4M13 16v-6M18 16V11"/></Icon>,
   gear:     (p) => <Icon {...p}><circle cx="10" cy="10" r="2.4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/></Icon>,
   hash:     (p) => <Icon {...p}><path d="M7 3 5 17M15 3l-2 14M3 7h14M3 13h14"/></Icon>,
+  trash:    (p) => <Icon {...p}><path d="M4 6h12M9 6V4h2v2M8 9v6M12 9v6M5 6l1 11h8l1-11"/></Icon>,
 };
 
 window.Icons = Icons;
