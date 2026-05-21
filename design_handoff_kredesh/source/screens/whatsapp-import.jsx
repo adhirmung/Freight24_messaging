@@ -70,7 +70,7 @@ async function extractWithClaude(messages, apiKey) {
     return `${ts} ${m.sender}: ${m.body}`;
   }).join('\n\n');
 
-  const systemPrompt = `You are a logistics data extraction AI for Freight 24 / Kredesh, a South African freight and logistics company.
+  const systemPrompt = `You are a logistics data extraction AI for Freight 24 Messaging, a South African freight and logistics company.
 Your job: analyze WhatsApp chat messages from drivers, dispatchers, carriers, and warehouse staff, then return structured JSON.
 
 South African freight terminology you must recognize:
@@ -80,7 +80,7 @@ South African freight terminology you must recognize:
 - Container sizes: 20ft, 40ft, 12m, 6m
 - DBN = Durban, JHB/JNB = Johannesburg, CPT/CTN = Cape Town, PE = Port Elizabeth
 - Cargo: SLES (sodium lauryl ether sulphate, a liquid chemical), Allied (Allied chemicals), Slackwax (petroleum wax), Caustic Soda (NaOH), NIS slings (sodium silicate), prime cargo
-- "F24" / "Freight 24" / "Kredesh" = the company
+- "F24" / "Freight 24" / "Freight 24 Messaging" = the company
 - "Unpack teams" = warehouse workers assigned to unload containers
 - Loading plan with dates + X counts = how many containers load on each day
 - "Horse" cell/phone = driver's contact number
@@ -180,7 +180,7 @@ function StepPaste({ raw, setRaw, error, apiKey }) {
   return (
     <div>
       <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 }}>
-        Paste WhatsApp chat text below. Kredesh will parse each message, then use Claude AI to extract logistics fields, generate tasks, and create a new thread in your inbox.
+        Paste WhatsApp chat text below. Freight 24 Messaging will parse each message, then use Claude AI to extract logistics fields, generate tasks, and create a new thread in your inbox.
       </p>
 
       {!apiKey && (

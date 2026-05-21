@@ -80,7 +80,7 @@ function DashboardScreen() {
       {/* ── Header ── */}
       <div style={{ padding: '14px 24px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', letterSpacing: 0.7, textTransform: 'uppercase' }}>Kredesh</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', letterSpacing: 0.7, textTransform: 'uppercase' }}>Freight 24 Messaging</div>
           <h1 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 600 }}>Operations Dashboard</h1>
         </div>
         <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>Updated {updatedAt}</span>

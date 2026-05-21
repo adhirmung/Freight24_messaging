@@ -610,7 +610,7 @@ function ChatExtractBubble({ m, tasks }) {
     <div style={{ alignSelf: 'center', maxWidth: '78%', padding: '11px 14px', background: 'rgba(0,168,132,0.10)', border: '1px solid rgba(6,207,156,0.28)', borderRadius: 10, margin: '6px 0', boxShadow: '0 1px 0.5px rgba(11,20,26,0.13)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
         <Icons.spark size={13} stroke="#6FE3C2" />
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#6FE3C2' }}>Kredesh extracted {m.fields} fields · created {m.tasks} tasks</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#6FE3C2' }}>Freight 24 extracted {m.fields} fields · created {m.tasks} tasks</span>
         <span className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', marginLeft: 'auto' }}>{m.at}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -638,7 +638,7 @@ function chatNameColor(fromId) {
 // ────────────────────────────────────────────────────────────────
 // ── Claude extraction helper ──────────────────────────────────────────────────
 async function chatExtractWithClaude(text, apiKey = '') {
-  const system = `You are a logistics data extraction AI for Freight 24 / Kredesh, a South African freight company.
+  const system = `You are a logistics data extraction AI for Freight 24 Messaging, a South African freight company.
 Analyze chat messages and return structured JSON with logistics fields.
 Terminology: Horse = truck cab, container IDs like FSCU8065100, DBN = Durban, JHB = Johannesburg, CPT = Cape Town.
 Cargo types: SLES, Allied, Slackwax, Caustic Soda, NIS slings.`;
@@ -820,7 +820,7 @@ function ExtractionPanel({ chat, messages }) {
       <div style={{ background: 'var(--bg-2)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
         <div style={{ padding: '11px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icons.spark size={14} stroke="#6FE3C2" />
-          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Kredesh AI</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>Freight 24 AI</span>
           {loading && <span className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', marginLeft: 'auto' }}>Analyzing…</span>}
           {!loading && extraction && (
             <span className="mono" style={{ fontSize: 10, color: extraction.confidence >= 80 ? '#6FE3C2' : '#FCD68A', marginLeft: 'auto' }}>

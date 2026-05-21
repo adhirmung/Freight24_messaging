@@ -67,7 +67,7 @@ function App() {
               <circle cx="10" cy="11.5" r="1" fill="#0B141A"/>
             </svg>
           </div>
-          <div style={{ fontSize: 13 }}>Loading Kredesh…</div>
+          <div style={{ fontSize: 13 }}>Loading Freight 24 Messaging…</div>
         </div>
       </div>
     );

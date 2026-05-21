@@ -70,7 +70,7 @@ function Sidebar({ route, setRoute, user }) {
           </svg>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: -0.2 }}>Kredesh</div>
+          <div style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: -0.2 }}>Freight 24 Messaging</div>
           <div className="mono" style={{ fontSize: 9.5, color: 'var(--ink-3)', letterSpacing: 0.5, textTransform: 'uppercase' }}>Logistics OS</div>
         </div>
       </div>
@@ -84,7 +84,7 @@ function Sidebar({ route, setRoute, user }) {
       }}>
         <Icons.building size={15} stroke="var(--ink-2)" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kredesh Freight Co.</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Freight 24 Messaging</div>
           <div className="mono" style={{ fontSize: 9.5, color: 'var(--ink-3)' }}>PDX • Tier 3</div>
         </div>
         <Icons.arrowDown size={12} stroke="var(--ink-3)" />

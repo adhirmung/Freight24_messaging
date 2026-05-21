@@ -22,7 +22,7 @@ function Rail({ route, setRoute, user }) {
       padding: '14px 0 14px',
     }}>
       {/* logo */}
-      <div title="Kredesh" style={{
+      <div title="Freight 24 Messaging" style={{
         width: 38, height: 38, borderRadius: 11,
         background: 'linear-gradient(135deg, #06CF9C, #00A884)',
         display: 'grid', placeItems: 'center', marginBottom: 18,

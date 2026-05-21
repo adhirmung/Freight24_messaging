@@ -59,7 +59,7 @@ function AuthScreen() {
             </svg>
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 19, letterSpacing: -0.3 }}>Kredesh</div>
+            <div style={{ fontWeight: 700, fontSize: 19, letterSpacing: -0.3 }}>Freight 24 Messaging</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', letterSpacing: 0.8, textTransform: 'uppercase' }}>Internal messaging</div>
           </div>
         </div>

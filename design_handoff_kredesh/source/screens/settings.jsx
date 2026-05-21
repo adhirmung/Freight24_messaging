@@ -105,7 +105,7 @@ function Toggle({ on: initialOn, label, sub }) {
 function ProfilePanel({ user }) {
   return (
     <div>
-      <SettingsHeader title="Profile" sub="How you appear across the Kredesh workspace." />
+      <SettingsHeader title="Profile" sub="How you appear across the Freight 24 Messaging workspace." />
       <FormRow label="Display name">
         <TextInput value="Avery Chen" />
       </FormRow>
@@ -163,7 +163,7 @@ function AIPanel() {
 
   return (
     <div>
-      <SettingsHeader title="AI extraction" sub="What Kredesh pulls from your messages and how aggressively." />
+      <SettingsHeader title="AI extraction" sub="What Freight 24 Messaging pulls from your messages and how aggressively." />
 
       {/* Claude API key — required for real extraction */}
       <FormRow label="Claude API key" hint="Required for WhatsApp import extraction and thread re-analysis. Get your key at console.anthropic.com. Stored in browser localStorage only — never sent to any server except api.anthropic.com.">
@@ -235,8 +235,8 @@ function SecurityPanel() {
         <div className="card" style={{ overflow: 'hidden' }}>
           {[
             { device: 'MacBook Pro · Chrome 124', loc: 'Portland, OR', current: true, last: 'Now' },
-            { device: 'iPhone 15 · Kredesh app', loc: 'Portland, OR', last: '2h ago' },
-            { device: 'iPad · Kredesh app', loc: 'Tualatin DC', last: 'Yesterday' },
+            { device: 'iPhone 15 · Freight 24 app', loc: 'Portland, OR', last: '2h ago' },
+            { device: 'iPad · Freight 24 app', loc: 'Tualatin DC', last: 'Yesterday' },
           ].map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: i < 2 ? '1px solid var(--line)' : 'none' }}>
               <div style={{ flex: 1 }}>
@@ -263,7 +263,7 @@ function IntegrationsPanel() {
   ];
   return (
     <div>
-      <SettingsHeader title="Integrations" sub="What Kredesh talks to." />
+      <SettingsHeader title="Integrations" sub="What Freight 24 Messaging talks to." />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
         {stuff.map(s => (
           <div key={s.name} className="card" style={{ padding: 14 }}>
