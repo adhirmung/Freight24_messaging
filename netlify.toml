@@ -1,0 +1,16 @@
+[build]
+  publish   = "design_handoff_kredesh/source"
+  functions = "netlify/functions"
+
+# Claude API proxy → serverless function
+[[redirects]]
+  from   = "/api/claude"
+  to     = "/.netlify/functions/claude"
+  status = 200
+  force  = true
+
+# SPA fallback
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"/Users/adhirmungroo/Documents/Freight 24 Kredesh/.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx --version)",
+      "Bash(ls \"/Users/adhirmungroo/Documents/\" | grep -i \"freight\")",
+      "Bash(python3 -c ' *)",
+      "Bash(kill 13990)",
+      "mcp__4e0900a2-91d7-4f2e-bf9b-13d49afae7b9__list_tables",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
