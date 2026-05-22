@@ -730,6 +730,8 @@ function ExtractionPanel({ chat, messages }) {
   const [keyDraft,  setKeyDraft]  = React.useState('');
   const [needsKey,  setNeedsKey]  = React.useState(false);
   const [extraction, setExtraction] = React.useState(null);
+  const messagesRef = React.useRef(messages);
+  messagesRef.current = messages;
   const [loading,   setLoading]   = React.useState(false);
   const [error,     setError]     = React.useState(null);
   const [chatTasks, setChatTasks] = React.useState(() => D.tasks.filter(t => t.chat === chat.id));
@@ -750,7 +752,7 @@ function ExtractionPanel({ chat, messages }) {
     if (runningRef.current) return;
     const k = key ?? apiKey;
 
-    const allMsgs = messages.filter(m => m.from && m.segments && m.id);
+    const allMsgs = messagesRef.current.filter(m => m.from && m.segments && m.id);
     // Only process messages we haven't extracted yet; forceAll re-processes all
     const newMsgs = forceAll
       ? allMsgs
@@ -825,15 +827,15 @@ function ExtractionPanel({ chat, messages }) {
       runningRef.current = false;
       setLoading(false);
     }
-  }, [apiKey, messages, chat.id]);
+  }, [apiKey, chat.id]);
 
   // Auto-trigger on new messages — no client key required when server has one
   React.useEffect(() => {
-    const hasNew = messages.some(m => m.from && m.segments && m.id && !D.extractedMsgIds.has(m.id));
+    const hasNew = messagesRef.current.some(m => m.from && m.segments && m.id && !D.extractedMsgIds.has(m.id));
     if (!hasNew) return;
     const t = setTimeout(() => runExtraction(), 2000);
     return () => clearTimeout(t);
-  }, [messages.length, chat.id]);
+  }, [messages.length, chat.id, runExtraction]);
 
   const saveKey = () => {
     if (!keyDraft.trim()) return;
