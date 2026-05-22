@@ -152,3 +152,15 @@ input, textarea, select { font-family: inherit; }
 }
 .bubble.sent::after     { right: -7px; transform: scaleX(-1); }
 .bubble.received::after { left: -7px; }
+
+/* ── Responsive shell ── */
+.app-shell { height: 100vh; height: 100dvh; }
+
+/* Touch improvements */
+* { -webkit-tap-highlight-color: transparent; }
+button { touch-action: manipulation; }
+
+/* Prevent iOS auto-zoom on input focus */
+@media (max-width: 767px) {
+  textarea, input, select { font-size: 16px !important; }
+}

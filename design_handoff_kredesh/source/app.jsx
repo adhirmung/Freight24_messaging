@@ -5,6 +5,7 @@ function App() {
   const [sbUser,      setSbUser]      = React.useState(null);
   const [profile,     setProfile]     = React.useState(null);
   const [authLoading, setAuthLoading] = React.useState(true);
+  const { isMobile } = useResponsive();
 
   const loadProfile = React.useCallback(async (userId) => {
     const { data } = await sb.from('profiles').select('*').eq('id', userId).single();
@@ -88,9 +89,10 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-0)', overflow: 'hidden' }}>
-      <Rail route={route} setRoute={setRoute} user={me} />
-      <div style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>{body}</div>
+    <div className="app-shell" style={{ display: 'flex', background: 'var(--bg-0)', overflow: 'hidden' }}>
+      {!isMobile && <Rail route={route} setRoute={setRoute} user={me} />}
+      <div style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden', paddingBottom: isMobile ? 60 : 0 }}>{body}</div>
+      {isMobile && <Rail route={route} setRoute={setRoute} user={me} mobile />}
     </div>
   );
 }

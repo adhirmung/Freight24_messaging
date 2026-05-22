@@ -153,6 +153,7 @@ function TaskInstructionRow({ t, setRoute, onToggle, onDelete, last }) {
   const assignee = D.byId(D.users, t.assignee);
   const isMine = t.assignee === 'me';
   const [confirming, setConfirming] = React.useState(false);
+  const { isMobile } = useResponsive();
 
   const whenMatch = t.due?.match(/(\d{1,2}:\d{2}|\d{1,2}h\d{2}|EOD|TBC)/i);
   const dayMatch  = t.due?.match(/(today|tomorrow|wed|fri|mon|tue|thu|sat|sun)/i);
@@ -162,6 +163,33 @@ function TaskInstructionRow({ t, setRoute, onToggle, onDelete, last }) {
   const priorityColor = t.priority === 'high' ? '#FCA5A5' : t.priority === 'med' ? '#FCD68A' : 'var(--ink-3)';
   const priorityLabel = t.priority === 'high' ? 'High' : t.priority === 'med' ? 'Med' : 'Low';
   const completed = t.status === 'complete';
+
+  const DeleteControls = () => confirming ? (
+    <>
+      <button onClick={() => { onDelete(t.id); setConfirming(false); }} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 600, background: 'rgba(252,165,165,0.15)', border: '1px solid rgba(252,165,165,0.35)', color: '#FCA5A5', borderRadius: 5, cursor: 'pointer' }}>Delete</button>
+      <button onClick={() => setConfirming(false)} style={{ padding: '3px 6px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--ink-3)', cursor: 'pointer' }}>Cancel</button>
+    </>
+  ) : (
+    <button onClick={() => setConfirming(true)} title="Delete task" style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', borderRadius: 6, color: 'var(--ink-4)', cursor: 'pointer' }}>
+      <Icons.trash size={14} stroke="var(--ink-4)" />
+    </button>
+  );
+
+  if (isMobile) return (
+    <div style={{ padding: '12px 14px', borderBottom: last ? 'none' : '1px solid var(--line)', display: 'flex', gap: 11, alignItems: 'flex-start', opacity: completed ? 0.6 : 1 }}>
+      <TaskCheckbox status={t.status} onClick={() => onToggle(t.id)} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: completed ? 'var(--ink-3)' : 'var(--ink-0)', textDecoration: completed ? 'line-through' : 'none', lineHeight: 1.35 }}>{t.title}</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="mono" style={{ fontSize: 11.5, color: t.overdue ? '#FCA5A5' : 'var(--ink-3)', fontWeight: t.overdue ? 700 : 400 }}>{t.due || '—'}{t.overdue ? ' · overdue' : ''}</span>
+          <span className="mono" style={{ fontSize: 10.5, color: priorityColor }}>{priorityLabel}</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <DeleteControls />
+      </div>
+    </div>
+  );
 
   return (
     <div style={{
@@ -236,28 +264,7 @@ function TaskInstructionRow({ t, setRoute, onToggle, onDelete, last }) {
 
       {/* Delete */}
       <div style={{ justifySelf: 'end', display: 'flex', alignItems: 'center', gap: 4 }}>
-        {confirming ? (
-          <>
-            <button onClick={() => { onDelete(t.id); setConfirming(false); }} style={{
-              padding: '3px 8px', fontSize: 11, fontWeight: 600,
-              background: 'rgba(252,165,165,0.15)', border: '1px solid rgba(252,165,165,0.35)',
-              color: '#FCA5A5', borderRadius: 5, cursor: 'pointer',
-            }}>Delete</button>
-            <button onClick={() => setConfirming(false)} style={{
-              padding: '3px 6px', fontSize: 11,
-              background: 'transparent', border: 'none',
-              color: 'var(--ink-3)', cursor: 'pointer',
-            }}>Cancel</button>
-          </>
-        ) : (
-          <button onClick={() => setConfirming(true)} title="Delete task" style={{
-            width: 26, height: 26, display: 'grid', placeItems: 'center',
-            background: 'transparent', border: 'none', borderRadius: 6,
-            color: 'var(--ink-4)', cursor: 'pointer',
-          }}>
-            <Icons.trash size={14} stroke="var(--ink-4)" />
-          </button>
-        )}
+        <DeleteControls />
       </div>
     </div>
   );

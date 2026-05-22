@@ -7,6 +7,8 @@ function ChatsScreen({ route, setRoute, user, sbUser }) {
   const active       = chats.find(c => c.id === activeId) || chats[0];
   const [showPanel, setShowPanel] = React.useState(() => window.innerWidth >= 1180);
   const [dbMessages, setDbMessages] = React.useState([]);
+  const { isMobile, isTablet } = useResponsive();
+  const [mobileChatOpen, setMobileChatOpen] = React.useState(false);
 
   const fmtTime = (iso) => {
     const d = new Date(iso);
@@ -73,11 +75,26 @@ function ChatsScreen({ route, setRoute, user, sbUser }) {
     }
   };
 
-  const showExtractionPanel = showPanel && active.kind === 'group';
+  const showExtractionPanel = showPanel && active.kind === 'group' && !isTablet;
+
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
+        {mobileChatOpen
+          ? <ChatView chat={active} user={user} messages={allMessages} onSend={handleSend}
+              showPanel={false} setShowPanel={setShowPanel} setRoute={setRoute}
+              onBack={() => setMobileChatOpen(false)} />
+          : <ChatList chats={chats} active={active}
+              onSelect={c => { setRoute({ screen: 'chats', chatId: c.id }); setMobileChatOpen(true); }}
+              user={user} fullWidth />
+        }
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-      <ChatList chats={chats} active={active} onSelect={c => setRoute({ screen: 'chats', chatId: c.id })} user={user} />
+      <ChatList chats={chats} active={active} onSelect={c => setRoute({ screen: 'chats', chatId: c.id })} user={user} width={isTablet ? 280 : 360} />
       <ChatView chat={active} user={user} messages={allMessages} onSend={handleSend} showPanel={showExtractionPanel} setShowPanel={setShowPanel} setRoute={setRoute} />
       {showExtractionPanel && <ExtractionPanel chat={active} messages={allMessages} setRoute={setRoute} />}
     </div>
@@ -87,7 +104,7 @@ function ChatsScreen({ route, setRoute, user, sbUser }) {
 // ────────────────────────────────────────────────────────────────
 // LEFT — chat list + flows panel
 // ────────────────────────────────────────────────────────────────
-function ChatList({ chats, active, onSelect, user }) {
+function ChatList({ chats, active, onSelect, user, width = 360, fullWidth = false }) {
   const D = window.KredeshData;
   const [q, setQ] = React.useState('');
   const [filter, setFilter] = React.useState('all');
@@ -116,7 +133,7 @@ function ChatList({ chats, active, onSelect, user }) {
   });
 
   return (
-    <div style={{ width: 360, flexShrink: 0, background: 'var(--bg-1)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: fullWidth ? '100%' : width, flexShrink: 0, background: 'var(--bg-1)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
       {/* Header with top-level tabs */}
       <div style={{ background: 'var(--bg-2)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
         <div style={{ padding: '12px 16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -297,7 +314,7 @@ function ChatRow({ c, active, onClick }) {
 // ────────────────────────────────────────────────────────────────
 // CENTER — chat view (WhatsApp bubbles)
 // ────────────────────────────────────────────────────────────────
-function ChatView({ chat, user, messages: rawPropMessages, onSend, showPanel, setShowPanel, setRoute }) {
+function ChatView({ chat, user, messages: rawPropMessages, onSend, showPanel, setShowPanel, setRoute, onBack }) {
   const D = window.KredeshData;
   const w = chat.with ? D.byId(D.users, chat.with) : null;
   const name = chat.name || w?.name || '—';
@@ -360,6 +377,17 @@ function ChatView({ chat, user, messages: rawPropMessages, onSend, showPanel, se
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-0)' }}>
       {/* Header */}
       <div style={{ padding: '10px 16px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 13 }}>
+        {onBack && (
+          <button onClick={onBack} style={{
+            width: 34, height: 34, display: 'grid', placeItems: 'center',
+            background: 'transparent', border: 'none', borderRadius: 8,
+            color: 'var(--ink-1)', cursor: 'pointer', flexShrink: 0, marginLeft: -6,
+          }}>
+            <span style={{ display: 'grid', transform: 'scaleX(-1)' }}>
+              <Icons.arrow size={18} stroke="var(--ink-1)" />
+            </span>
+          </button>
+        )}
         {chat.kind === 'group' ? (
           <div style={{ width: 38, height: 38, borderRadius: 999, background: 'var(--bg-3)', border: '1px solid var(--line-2)', display: 'grid', placeItems: 'center' }}>
             <Icons.users size={17} stroke="var(--ink-2)" />

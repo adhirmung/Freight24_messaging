@@ -1,5 +1,15 @@
 // Shell: thin icon rail (3–4 tabs) + shared primitives
-function Rail({ route, setRoute, user }) {
+function useResponsive() {
+  const [w, setW] = React.useState(window.innerWidth);
+  React.useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return { isMobile: w < 768, isTablet: w < 1100 };
+}
+
+function Rail({ route, setRoute, user, mobile }) {
   const D = window.KredeshData;
   const unread = D.chats.reduce((s, c) => s + (c.unread || 0), 0);
   const pending = D.tasks.filter(t => t.status === 'pending').length;
@@ -11,6 +21,43 @@ function Rail({ route, setRoute, user }) {
     { id: 'dashboard', icon: 'chart',  label: 'Dashboard' },
   ];
   if (user.isAdmin) items.push({ id: 'admin', icon: 'shield', label: 'Admin' });
+
+  if (mobile) return (
+    <nav style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
+      height: 60,
+      background: 'var(--bg-1)',
+      borderTop: '1px solid var(--line)',
+      display: 'flex', alignItems: 'stretch',
+    }}>
+      {items.map(it => {
+        const Ico = Icons[it.icon];
+        const active = route.screen === it.id;
+        return (
+          <button key={it.id} onClick={() => setRoute({ screen: it.id })}
+            style={{
+              flex: 1,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 2, padding: '4px 2px 6px',
+              background: 'transparent', border: 'none',
+              color: active ? 'var(--green-2)' : 'var(--ink-3)',
+              cursor: 'pointer', position: 'relative',
+            }}>
+            <Ico size={22} stroke={active ? 'var(--green-2)' : 'var(--ink-3)'} />
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.2 }}>{it.label}</span>
+            {it.badge ? (
+              <span style={{
+                position: 'absolute', top: 4, right: '50%', transform: 'translateX(12px)',
+                fontSize: 9, fontWeight: 700,
+                background: 'var(--green)', color: '#0B141A',
+                padding: '1px 4px', borderRadius: 999, minWidth: 14, textAlign: 'center',
+              }}>{it.badge}</span>
+            ) : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
 
   return (
     <aside style={{
@@ -164,4 +211,4 @@ function TaskCheckbox({ status, onClick }) {
   );
 }
 
-Object.assign(window, { Rail, Avatar, Pill, Btn, TaskCheckbox });
+Object.assign(window, { Rail, Avatar, Pill, Btn, TaskCheckbox, useResponsive });
