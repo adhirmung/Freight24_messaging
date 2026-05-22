@@ -776,22 +776,26 @@ function ExtractionPanel({ chat, messages }) {
       setExtraction(result);
 
       if (result.tasks?.length) {
-        const now = new Date();
-        const at = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-        const tasksToInsert = result.tasks.map(t => ({
-          chat_id: chat.id,
-          title: t.title,
-          status: 'pending',
-          priority: t.priority || 'med',
-          due: t.due || 'Today',
-          extracted_from: chat.name || chat.id,
-        }));
-        const { data: insertedTasks } = await sb.from('tasks').insert(tasksToInsert).select();
-        const newTasks = (insertedTasks || []).map(t => ({
-          ...t, id: t.id, chat: t.chat_id, extractedFrom: t.extracted_from, assignee: 'me',
-        }));
-        D.tasks.unshift(...newTasks);
-        setChatTasks(D.tasks.filter(tt => tt.chat === chat.id));
+        // Fetch existing task titles for this chat to prevent duplicates across sessions/devices
+        const { data: existing } = await sb.from('tasks').select('title').eq('chat_id', chat.id);
+        const existingTitles = new Set((existing || []).map(t => (t.title || '').toLowerCase().trim()));
+        const deduped = result.tasks.filter(t => !existingTitles.has((t.title || '').toLowerCase().trim()));
+        if (deduped.length > 0) {
+          const tasksToInsert = deduped.map(t => ({
+            chat_id: chat.id,
+            title: t.title,
+            status: 'pending',
+            priority: t.priority || 'med',
+            due: t.due || 'Today',
+            extracted_from: chat.name || chat.id,
+          }));
+          const { data: insertedTasks } = await sb.from('tasks').insert(tasksToInsert).select();
+          const newTasks = (insertedTasks || []).map(t => ({
+            ...t, id: t.id, chat: t.chat_id, extractedFrom: t.extracted_from, assignee: 'me',
+          }));
+          D.tasks.unshift(...newTasks);
+          setChatTasks(D.tasks.filter(tt => tt.chat === chat.id));
+        }
       }
 
       if (result.loads?.length) {
