@@ -695,7 +695,7 @@ Rules:
       ...(apiKey ? { 'x-api-key': apiKey } : {}),
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-7',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system,
       messages: [{ role: 'user', content: prompt }],
