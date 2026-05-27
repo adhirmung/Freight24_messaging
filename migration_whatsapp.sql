@@ -6,7 +6,7 @@
 -- WhatsApp messages received from Baileys / official API
 CREATE TABLE IF NOT EXISTS whatsapp_messages (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  chat_id       UUID        REFERENCES chats(id) ON DELETE CASCADE,
+  chat_id       TEXT,                          -- matches chats.id (TEXT, no FK)
   sender        TEXT        NOT NULL,
   sender_phone  TEXT,
   body          TEXT        NOT NULL DEFAULT '',
