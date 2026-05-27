@@ -10,7 +10,7 @@
  *   1. npm install @whiskeysockets/baileys @supabase/supabase-js dotenv
  *   2. Copy .env.example → .env and fill in your values
  *   3. node baileys-listener.js
- *   4. Scan the QR code with WhatsApp on your phone
+ *   4. Enter the 8-digit pairing code in WhatsApp → Linked Devices → Link with phone number
  *
  * After pairing, auth is saved in ./auth — no need to scan again.
  *
@@ -37,6 +37,9 @@ require('dotenv').config();
 const SUPABASE_URL      = process.env.SUPABASE_URL      || 'https://mwgygfjufeynkewntdgq.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';  // fill in .env
 
+// Your WhatsApp number in international format without + (used for pairing code)
+const WA_PHONE_NUMBER = '27836573991';
+
 /**
  * Map your WhatsApp group IDs → Supabase chat IDs.
  *
@@ -46,7 +49,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';  // fill in .env
  *   c2, c3, c4, c6, c7  →  (unnamed — rename in app if needed)
  *
  * To find your WhatsApp group IDs:
- *   1. Run this script and scan the QR code
+ *   1. Run this script and pair with your phone number
  *   2. Send any message in a WhatsApp group
  *   3. The console will log:  ⚠️  Unknown group: 120363XXXXXXXX@g.us
  *   4. Copy that ID and paste it below
@@ -72,20 +75,26 @@ async function startListener() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     browser: ['Freight24', 'Chrome', '1.0.0'],
   });
 
   sock.ev.on('creds.update', saveCreds);
 
+  // Request pairing code if not yet registered
+  if (!sock.authState.creds.registered) {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // brief wait for socket to be ready
+    const code = await sock.requestPairingCode(WA_PHONE_NUMBER);
+    console.log('\n┌─────────────────────────────────┐');
+    console.log(`│  WhatsApp pairing code: ${code}  │`);
+    console.log('└─────────────────────────────────┘');
+    console.log('\n📱  On your phone: WhatsApp → Linked Devices → Link a Device → Link with phone number\n');
+  }
+
   // ── Connection lifecycle ──────────────────────────────────────────────────
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (qr) {
-      console.log('\n📱  Scan the QR code above with WhatsApp → Linked Devices\n');
-    }
+    const { connection, lastDisconnect } = update;
 
     if (connection === 'open') {
       console.log('✅  Connected to WhatsApp — listening for group messages…');
