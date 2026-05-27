@@ -14,37 +14,73 @@ function ChatsScreen({ route, setRoute, user, sbUser }) {
     const d = new Date(iso);
     return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
   };
+
+  // App message (typed inside this app)
   const rowToMsg = (row) => ({
     id:       row.id,
     from:     row.sender_id === sbUser?.id ? 'me' : (row.sender?.name || row.sender_id || 'unknown'),
     at:       fmtTime(row.sent_at),
     segments: [{ t: row.body }],
     status:   'sent',
+    source:   'app',
+    _ts:      new Date(row.sent_at).getTime(),
   });
 
-  // Load messages from DB whenever active chat changes
+  // WhatsApp message (from Baileys / official API → Supabase)
+  const waRowToMsg = (row) => ({
+    id:        'wa-' + row.id,
+    from:      row.sender,
+    at:        fmtTime(row.sent_at || row.created_at),
+    segments:  [{ t: row.body }],
+    status:    'sent',
+    source:    'whatsapp',
+    waStatus:  row.status,
+    waId:      row.id,
+    _ts:       new Date(row.sent_at || row.created_at).getTime(),
+  });
+
+  // Load from both messages + whatsapp_messages, merged by time
   React.useEffect(() => {
     if (!sbUser) return;
     setDbMessages([]);
-    sb.from('messages')
-      .select('id, body, sent_at, sender_id, sender:profiles(name)')
-      .eq('chat_id', activeId)
-      .order('sent_at', { ascending: true })
-      .then(({ data }) => { if (data) setDbMessages(data.map(rowToMsg)); });
+    Promise.all([
+      sb.from('messages')
+        .select('id, body, sent_at, sender_id, sender:profiles(name)')
+        .eq('chat_id', activeId)
+        .order('sent_at', { ascending: true }),
+      sb.from('whatsapp_messages')
+        .select('*')
+        .eq('chat_id', activeId)
+        .order('sent_at', { ascending: true }),
+    ]).then(([{ data: appData }, { data: waData }]) => {
+      const merged = [
+        ...(appData || []).map(rowToMsg),
+        ...(waData  || []).map(waRowToMsg),
+      ].sort((a, b) => a._ts - b._ts);
+      setDbMessages(merged);
+    });
   }, [activeId, sbUser?.id]);
 
-  // Real-time subscription for new messages from other users
+  // Real-time: watch both tables on a single channel
   React.useEffect(() => {
     if (!sbUser) return;
-    const channel = sb.channel(`msgs_${activeId}`)
+    const channel = sb.channel(`chat_${activeId}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'messages',
         filter: `chat_id=eq.${activeId}`,
       }, (payload) => {
         const row = payload.new;
         if (row.sender_id !== sbUser.id) {
-          setDbMessages(prev => [...prev, rowToMsg(row)]);
+          const msg = rowToMsg(row);
+          setDbMessages(prev => [...prev, msg].sort((a, b) => a._ts - b._ts));
         }
+      })
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'whatsapp_messages',
+        filter: `chat_id=eq.${activeId}`,
+      }, (payload) => {
+        const msg = waRowToMsg(payload.new);
+        setDbMessages(prev => [...prev, msg].sort((a, b) => a._ts - b._ts));
       })
       .subscribe();
     return () => sb.removeChannel(channel);
@@ -512,7 +548,12 @@ function ChatMessageBubble({ m, prev, allMessages, chatKind, chatMembers, onChip
         style={{ position: 'relative', maxWidth: '72%', display: 'flex', alignItems: 'flex-start' }}>
         <div className={`bubble ${isMe ? 'sent' : 'received'}`} style={{ maxWidth: '100%' }}>
           {!isMe && !sameAsPrev && u && (
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: chatNameColor(m.from), marginBottom: 1 }}>{u.name}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: chatNameColor(m.from), marginBottom: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+              {u.name}
+              {m.source === 'whatsapp' && (
+                <span style={{ fontSize: 9, fontWeight: 700, background: '#25D366', color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>WA</span>
+              )}
+            </div>
           )}
           {replied && <ChatQuotedSnippet m={replied} />}
           {m.segments && (
