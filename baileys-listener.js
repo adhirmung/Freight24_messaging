@@ -38,13 +38,26 @@ const SUPABASE_URL      = process.env.SUPABASE_URL      || 'https://mwgygfjufeyn
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';  // fill in .env
 
 /**
- * Map your WhatsApp group IDs → Supabase chat UUIDs.
- * Run:  SELECT id, name FROM chats;   to get chat IDs.
- * Group IDs look like: 120363123456789012@g.us
- * They are logged to the console whenever an unrecognised group sends a message.
+ * Map your WhatsApp group IDs → Supabase chat IDs.
+ *
+ * Supabase chats (from SELECT id, name FROM chats):
+ *   c1  →  WHS 24 OPERATIONS
+ *   c5  →  Allied Bookings
+ *   c2, c3, c4, c6, c7  →  (unnamed — rename in app if needed)
+ *
+ * To find your WhatsApp group IDs:
+ *   1. Run this script and scan the QR code
+ *   2. Send any message in a WhatsApp group
+ *   3. The console will log:  ⚠️  Unknown group: 120363XXXXXXXX@g.us
+ *   4. Copy that ID and paste it below
  */
 const GROUP_TO_CHAT = {
-  // '120363XXXXXXXXXX@g.us': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+  // WHS 24 OPERATIONS
+  // '120363XXXXXXXXXX@g.us': 'c1',
+
+  // Allied Bookings
+  // '120363XXXXXXXXXX@g.us': 'c5',
+
   // Add more groups here ↓
 };
 
