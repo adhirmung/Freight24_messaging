@@ -30,6 +30,8 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } =
   require('@whiskeysockets/baileys');
 const { createClient } = require('@supabase/supabase-js');
+const QRCode = require('qrcode');
+const path = require('path');
 require('dotenv').config();
 
 // ─── Config ─────────────────────────────────────────────────────────────────
@@ -56,12 +58,10 @@ const WA_PHONE_NUMBER = '27836573991';
  */
 const GROUP_TO_CHAT = {
   // WHS 24 OPERATIONS
-  // '120363XXXXXXXXXX@g.us': 'c1',
+  '120363409608734456@g.us': 'c1',
 
-  // Allied Bookings
+  // Allied Bookings — uncomment and add group ID when ready
   // '120363XXXXXXXXXX@g.us': 'c5',
-
-  // Add more groups here ↓
 };
 
 // ─── Supabase ────────────────────────────────────────────────────────────────
@@ -81,20 +81,19 @@ async function startListener() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  // Request pairing code if not yet registered
-  if (!sock.authState.creds.registered) {
-    await new Promise(resolve => setTimeout(resolve, 2000)); // brief wait for socket to be ready
-    const code = await sock.requestPairingCode(WA_PHONE_NUMBER);
-    console.log('\n┌─────────────────────────────────┐');
-    console.log(`│  WhatsApp pairing code: ${code}  │`);
-    console.log('└─────────────────────────────────┘');
-    console.log('\n📱  On your phone: WhatsApp → Linked Devices → Link a Device → Link with phone number\n');
-  }
-
   // ── Connection lifecycle ──────────────────────────────────────────────────
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    // Save QR as image file and open it automatically
+    if (qr) {
+      const qrPath = path.join(__dirname, 'whatsapp-qr.png');
+      await QRCode.toFile(qrPath, qr, { width: 400 });
+      console.log('\n📱  QR code saved → whatsapp-qr.png');
+      console.log('   Opening it now — scan with WhatsApp → Linked Devices → Link a Device\n');
+      require('child_process').exec(`open "${qrPath}"`);
+    }
 
     if (connection === 'open') {
       console.log('✅  Connected to WhatsApp — listening for group messages…');
@@ -117,9 +116,6 @@ async function startListener() {
     if (type !== 'notify') return;
 
     for (const message of msgs) {
-      // Ignore own messages
-      if (message.key.fromMe) continue;
-
       const remoteJid = message.key.remoteJid;
 
       // Only process group messages
