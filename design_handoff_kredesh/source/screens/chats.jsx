@@ -797,7 +797,8 @@ function ExtractionPanel({ chat, messages }) {
     if (runningRef.current) return;
     const k = key ?? apiKey;
 
-    const allMsgs = messagesRef.current.filter(m => m.from && m.segments && m.id);
+    // WA messages are handled by GlobalExtractor in app.jsx — skip them here
+    const allMsgs = messagesRef.current.filter(m => m.from && m.segments && m.id && m.source !== 'whatsapp');
     // Only process messages we haven't extracted yet; forceAll re-processes all
     const newMsgs = forceAll
       ? allMsgs
