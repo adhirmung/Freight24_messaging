@@ -718,14 +718,15 @@ Cargo types: SLES, Allied, Slackwax, Caustic Soda, NIS slings.`;
 ${text}
 
 Rules:
-- tasks: ONE task per message maximum. The task title must be the full verbatim message body, lightly cleaned (remove greetings like "Hi All"). Do NOT split a message into multiple tasks.
+- tasks: ONE task per message maximum. If the message is a structured shipment (contains fields like Customer, Vehicle Reg, Transporter, Estimated Date, Status etc.), extract it as a shipment record with all available fields. Otherwise use the full verbatim message body as the title, lightly cleaned. Do NOT split a message into multiple tasks.
+- For structured shipment messages extract: type (inbound/outbound), customer, pickup_location, destination, vehicle_reg, trailer_reg, transporter, driver, vessel, stack_dates, container_size, info, estimated_date, status (scheduled/enroute/arrived/delayed/complete).
 - loads: extract every inbound/outbound load mentioned (trucks arriving, containers, deliveries, loadouts). One load object per movement.
 - fields: key structured data points (container IDs, vehicles, ETAs, customers, drivers).
 - etas: extract ONLY messages that mention a specific arrival/departure TIME (e.g. "arriving 14:30", "loading at 09:00", "ETA 15h00"). Each ETA needs a time. Skip vague ones like "arriving today" with no time. For eta_date use ISO format YYYY-MM-DD; if the message says "tomorrow" use the next day from today (${today}); if a day name (Monday, Friday etc.) use the nearest upcoming date.
 
 {
   "fields": [{"label": "Human label", "value": "extracted value", "icon": "pkg|pin2|clock|truck|user|warn|hash|shield", "tone": "ok|warn|bad"}],
-  "tasks": [{"title": "Full message body cleaned", "priority": "high|med|low", "due": "Today|Tomorrow|specific time"}],
+  "tasks": [{"title": "Full message body or customer name", "priority": "high|med|low", "due": "Today|Tomorrow|specific time", "type": "inbound|outbound", "customer": "or null", "pickup_location": "or null", "destination": "or null", "vehicle_reg": "or null", "trailer_reg": "or null", "transporter": "or null", "driver": "or null", "vessel": "or null", "stack_dates": "or null", "container_size": "or null", "info": "or null", "estimated_date": "or null", "status": "scheduled|enroute|arrived|delayed|complete|or null"}],
   "loads": [{"direction": "inbound|outbound", "cargo": "what is being moved", "vehicle": "truck/container ID or —", "eta": "time or —", "customer": "customer name or —", "status": "scheduled|en route|arrived|loaded out"}],
   "etas": [{"what": "cargo/container description", "customer": "customer name or —", "vehicle": "truck/container ID or —", "at": "HH:MM or —", "dest": "destination or —", "kind": "inbound|outbound|visit", "eta_date": "YYYY-MM-DD", "detail": "any extra info or null"}],
   "summary": "One sentence summary",
@@ -828,12 +829,25 @@ function ExtractionPanel({ chat, messages }) {
         const deduped = result.tasks.filter(t => !existingTitles.has((t.title || '').toLowerCase().trim()));
         if (deduped.length > 0) {
           const tasksToInsert = deduped.map(t => ({
-            chat_id: chat.id,
-            title: t.title,
-            status: 'pending',
-            priority: t.priority || 'med',
-            due: t.due || 'Today',
-            extracted_from: chat.name || chat.id,
+            chat_id:         chat.id,
+            title:           t.customer || t.title,
+            status:          t.status || 'scheduled',
+            priority:        t.priority || 'med',
+            due:             t.due || 'Today',
+            extracted_from:  chat.name || chat.id,
+            type:            t.type            || null,
+            customer:        t.customer        || null,
+            pickup_location: t.pickup_location || null,
+            destination:     t.destination     || null,
+            vehicle_reg:     t.vehicle_reg     || null,
+            trailer_reg:     t.trailer_reg     || null,
+            transporter:     t.transporter     || null,
+            driver:          t.driver          || null,
+            vessel:          t.vessel          || null,
+            stack_dates:     t.stack_dates     || null,
+            container_size:  t.container_size  || null,
+            info:            t.info            || null,
+            estimated_date:  t.estimated_date  || null,
           }));
           const { data: insertedTasks } = await sb.from('tasks').insert(tasksToInsert).select();
           const newTasks = (insertedTasks || []).map(t => ({

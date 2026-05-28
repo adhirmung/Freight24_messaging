@@ -1,142 +1,148 @@
-// Tasks — instruction list extracted from chats
+// Shipment / Task list — structured cards, editable, live from Supabase
 function TasksScreen({ route, setRoute, user }) {
   const D = window.KredeshData;
   const [tasks, setTasks] = React.useState(D.tasks || []);
-  const [tab, setTab] = React.useState('today');
+  const [tab, setTab]     = React.useState('all');
   const [search, setSearch] = React.useState('');
+  const [showAdd, setShowAdd] = React.useState(false);
 
   const rowToTask = (t) => ({ ...t, chat: t.chat_id, extractedFrom: t.extracted_from, assignee: 'me' });
 
-  // Load tasks from Supabase on mount
+  // ── Load ───────────────────────────────────────────────────────────────────
   React.useEffect(() => {
     sb.from('tasks').select('*').order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data) {
-          const mapped = data.map(rowToTask);
-          setTasks(mapped);
-          D.tasks = mapped;
-        }
+        if (data) { const m = data.map(rowToTask); setTasks(m); D.tasks = m; }
       });
   }, []);
 
-  // Real-time subscription — new/updated/deleted tasks appear instantly
+  // ── Real-time ──────────────────────────────────────────────────────────────
   React.useEffect(() => {
-    const channel = sb.channel('tasks_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
-        const t = rowToTask(payload.new);
+    const ch = sb.channel('tasks_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, ({ new: row }) => {
         setTasks(prev => {
-          if (prev.find(x => x.id === t.id)) return prev; // already exists
-          const updated = [t, ...prev];
-          D.tasks = updated;
-          return updated;
+          if (prev.find(x => x.id === row.id)) return prev;
+          const u = [rowToTask(row), ...prev]; D.tasks = u; return u;
         });
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
-        setTasks(prev => {
-          const updated = prev.map(x => x.id === payload.new.id ? rowToTask(payload.new) : x);
-          D.tasks = updated;
-          return updated;
-        });
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, ({ new: row }) => {
+        setTasks(prev => { const u = prev.map(x => x.id === row.id ? rowToTask(row) : x); D.tasks = u; return u; });
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
-        setTasks(prev => {
-          const updated = prev.filter(x => x.id !== payload.old.id);
-          D.tasks = updated;
-          return updated;
-        });
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, ({ old: row }) => {
+        setTasks(prev => { const u = prev.filter(x => x.id !== row.id); D.tasks = u; return u; });
       })
       .subscribe();
-    return () => sb.removeChannel(channel);
+    return () => sb.removeChannel(ch);
   }, []);
 
-  const buckets = {
-    today:    tasks.filter(t => t.status === 'pending' && /today/i.test(t.due)),
-    upcoming: tasks.filter(t => t.status === 'pending' && !/today/i.test(t.due)),
-    overdue:  tasks.filter(t => t.status === 'incomplete' || t.overdue),
-    done:     tasks.filter(t => t.status === 'complete'),
-  };
-  const counts = Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, v.length]));
-
-  const visible = (buckets[tab] || []).filter(t => !search ||
-    (t.title + (t.extractedFrom || '') + (t.due || '')).toLowerCase().includes(search.toLowerCase())
-  );
-
-  const toggle = async (id) => {
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-    const newStatus = task.status === 'complete' ? 'pending' : 'complete';
-    await sb.from('tasks').update({ status: newStatus }).eq('id', id);
-    setTasks(ts => ts.map(t => t.id === id ? ({
-      ...t,
-      status: newStatus,
-      completedAt: newStatus === 'complete' ? 'Just now' : null,
-    }) : t));
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const updateTask = async (id, changes) => {
+    await sb.from('tasks').update(changes).eq('id', id);
   };
 
   const deleteTask = async (id) => {
     await sb.from('tasks').delete().eq('id', id);
-    setTasks(ts => ts.filter(t => t.id !== id));
   };
 
+  const addTask = async (fields) => {
+    await sb.from('tasks').insert({ ...fields, status: fields.status || 'scheduled', priority: 'med' });
+    setShowAdd(false);
+  };
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  const counts = {
+    all:      tasks.length,
+    inbound:  tasks.filter(t => t.type === 'inbound').length,
+    outbound: tasks.filter(t => t.type === 'outbound').length,
+    delayed:  tasks.filter(t => t.status === 'delayed').length,
+    complete: tasks.filter(t => t.status === 'complete').length,
+  };
+
+  const q = search.toLowerCase();
+  const filtered = tasks.filter(t => {
+    const matchTab =
+      tab === 'all'      ? true :
+      tab === 'inbound'  ? t.type === 'inbound' :
+      tab === 'outbound' ? t.type === 'outbound' :
+      tab === 'delayed'  ? t.status === 'delayed' :
+      tab === 'complete' ? t.status === 'complete' : true;
+    const matchSearch = !q || (
+      [t.title, t.customer, t.vehicle_reg, t.transporter, t.driver, t.info, t.pickup_location, t.destination]
+        .filter(Boolean).join(' ').toLowerCase().includes(q)
+    );
+    return matchTab && matchSearch;
+  });
+
+  const { isMobile } = useResponsive();
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-0)' }}>
+
       {/* Top bar */}
-      <div style={{
-        padding: '12px 22px',
-        background: 'var(--bg-2)', borderBottom: '1px solid var(--line)',
-        display: 'flex', alignItems: 'center', gap: 16,
-      }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ padding: '12px 22px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Tasks</h1>
-            <Pill tone="green"><span className="live-dot" style={{ marginRight: 4 }} /> Live</Pill>
+            <h1 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Shipments</h1>
+            <Pill tone="green"><span className="live-dot" style={{ marginRight: 4 }} />Live</Pill>
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }}>
-            Action items pulled from chats · {tasks.length} total · {counts.overdue} overdue
+            {tasks.length} total · {counts.delayed} delayed
           </div>
         </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px',
-          background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 8, minWidth: 240,
-        }}>
-          <Icons.search size={13} stroke="var(--ink-3)" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search task, container, customer…"
-            style={{ flex: 1, background: 'none', border: 'none', color: 'var(--ink-0)', fontSize: 12.5, outline: 'none' }} />
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 8, minWidth: 200 }}>
+            <Icons.search size={13} stroke="var(--ink-3)" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Customer, vehicle, driver…"
+              style={{ flex: 1, background: 'none', border: 'none', color: 'var(--ink-0)', fontSize: 12.5, outline: 'none' }} />
+          </div>
+        )}
+        <button onClick={() => { setShowAdd(true); }} style={{
+          padding: '7px 16px', background: 'var(--green)', border: 'none', borderRadius: 8,
+          color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        }}>+ Add</button>
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0 22px', display: 'flex', alignItems: 'center', gap: 22, borderBottom: '1px solid var(--line)', background: 'var(--bg-2)' }}>
+      <div style={{ padding: '0 22px', display: 'flex', alignItems: 'center', gap: isMobile ? 14 : 22, borderBottom: '1px solid var(--line)', background: 'var(--bg-2)', overflowX: 'auto' }}>
         {[
-          { id: 'today',    label: 'Today',    count: counts.today,    color: 'var(--green-2)' },
-          { id: 'upcoming', label: 'Upcoming', count: counts.upcoming, color: 'var(--green-2)' },
-          { id: 'overdue',  label: 'Overdue',  count: counts.overdue,  color: 'var(--bad)' },
-          { id: 'done',     label: 'Done',     count: counts.done,     color: 'var(--ink-3)' },
+          { id: 'all',      label: 'All' },
+          { id: 'inbound',  label: 'Inbound' },
+          { id: 'outbound', label: 'Outbound' },
+          { id: 'delayed',  label: 'Delayed',  accent: 'var(--bad)' },
+          { id: 'complete', label: 'Done' },
         ].map(t => {
           const on = tab === t.id;
+          const accent = t.accent || 'var(--green-2)';
           return (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '11px 0', background: 'transparent', border: 'none',
-              borderBottom: '2px solid', borderBottomColor: on ? t.color : 'transparent',
-              color: on ? 'var(--ink-0)' : 'var(--ink-2)',
-              fontSize: 13, fontWeight: 600,
-              display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+              padding: '11px 0', background: 'transparent', border: 'none', flexShrink: 0,
+              borderBottom: '2px solid', borderBottomColor: on ? accent : 'transparent',
+              color: on ? 'var(--ink-0)' : 'var(--ink-2)', fontSize: 13, fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
             }}>
               {t.label}
-              <span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: on ? t.color : 'var(--ink-3)' }}>{t.count}</span>
+              <span className="mono" style={{ fontSize: 10.5, color: on ? accent : 'var(--ink-3)' }}>{counts[t.id]}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px' }}>
-        {tab === 'today' && <TaskMiniStats tasks={tasks} />}
-        <TaskInstructionList items={visible} setRoute={setRoute} onToggle={toggle} onDelete={deleteTask} />
-        {visible.length === 0 && (
+      {/* Cards */}
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 12px' : '18px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {showAdd && (
+          <ShipmentCard task={null} isNew setRoute={setRoute} onSave={addTask} onCancel={() => setShowAdd(false)} onUpdate={updateTask} onDelete={deleteTask} />
+        )}
+        {filtered.map(t => (
+          <ShipmentCard key={t.id} task={t} setRoute={setRoute} onUpdate={updateTask} onDelete={deleteTask} />
+        ))}
+        {filtered.length === 0 && !showAdd && (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--ink-3)' }}>
-            <Icons.check size={28} stroke="var(--ink-4)" />
-            <div style={{ marginTop: 12, fontSize: 13 }}>Nothing in this lane.</div>
+            <Icons.inbox size={28} stroke="var(--ink-4)" />
+            <div style={{ marginTop: 12, fontSize: 13 }}>No shipments here.</div>
+            <button onClick={() => setShowAdd(true)} style={{ marginTop: 14, padding: '7px 16px', background: 'var(--green)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              + Add shipment
+            </button>
           </div>
         )}
       </div>
@@ -144,158 +150,213 @@ function TasksScreen({ route, setRoute, user }) {
   );
 }
 
-function TaskMiniStats({ tasks }) {
-  const t = {
-    high:    tasks.filter(x => x.status === 'pending' && x.priority === 'high').length,
-    overdue: tasks.filter(x => x.overdue || x.status === 'incomplete').length,
-  };
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 18, maxWidth: 480 }}>
-      <TaskMiniBox label="High priority" value={t.high}    tone="warn" />
-      <TaskMiniBox label="Overdue"       value={t.overdue} tone="bad" />
-    </div>
-  );
-}
+// ── Shipment Card ────────────────────────────────────────────────────────────
 
-function TaskMiniBox({ label, value, tone }) {
-  const colors = { green: '#6FE3C2', warn: '#FCD68A', bad: '#FCA5A5' };
-  return (
-    <div className="card" style={{ padding: 14 }}>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', letterSpacing: 0.6, textTransform: 'uppercase' }}>{label}</div>
-      <div className="mono" style={{ fontSize: 28, fontWeight: 600, color: colors[tone] || 'var(--ink-0)', marginTop: 6, letterSpacing: -0.5 }}>{value}</div>
-    </div>
-  );
-}
+const SHIPMENT_FIELDS = [
+  { key: 'customer',        label: 'Customer' },
+  { key: 'pickup_location', label: 'Pickup Location' },
+  { key: 'destination',     label: 'To' },
+  { key: 'vehicle_reg',     label: 'Vehicle Reg' },
+  { key: 'trailer_reg',     label: 'Trailer Reg' },
+  { key: 'transporter',     label: 'Transporter' },
+  { key: 'driver',          label: 'Driver' },
+  { key: 'vessel',          label: 'Vessel' },
+  { key: 'stack_dates',     label: 'Stack Dates' },
+  { key: 'container_size',  label: 'Container Size' },
+  { key: 'estimated_date',  label: 'Estimated Date' },
+];
 
-function TaskInstructionList({ items, setRoute, onToggle, onDelete }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="card" style={{ overflow: 'hidden' }}>
-      {items.map((t, idx) => (
-        <TaskInstructionRow key={t.id} t={t} setRoute={setRoute} onToggle={onToggle} onDelete={onDelete} last={idx === items.length - 1} />
-      ))}
-    </div>
-  );
-}
+const STATUS_MAP = {
+  scheduled: { label: 'Scheduled', color: 'var(--ink-2)',  bg: 'rgba(255,255,255,0.06)', border: 'var(--line)' },
+  pending:   { label: 'Pending',   color: '#FCD68A',       bg: 'var(--warn-soft)',        border: 'rgba(255,176,32,0.3)' },
+  enroute:   { label: 'En Route',  color: '#6FE3C2',       bg: 'var(--green-soft)',       border: 'rgba(6,207,156,0.25)' },
+  arrived:   { label: 'Arrived',   color: '#6FE3C2',       bg: 'var(--green-soft)',       border: 'rgba(6,207,156,0.25)' },
+  delayed:   { label: 'Delayed',   color: '#FCA5A5',       bg: 'var(--bad-soft)',         border: 'rgba(241,92,109,0.3)' },
+  complete:  { label: 'Complete',  color: '#6FE3C2',       bg: 'var(--green-soft)',       border: 'rgba(6,207,156,0.25)' },
+};
 
-function TaskInstructionRow({ t, setRoute, onToggle, onDelete, last }) {
-  const D = window.KredeshData;
-  const assignee = D.byId(D.users, t.assignee);
-  const isMine = t.assignee === 'me';
+const TYPE_MAP = {
+  inbound:  { label: 'Inbound',  color: '#6FE3C2' },
+  outbound: { label: 'Outbound', color: '#7CC4FF' },
+};
+
+function ShipmentCard({ task, isNew, setRoute, onSave, onCancel, onUpdate, onDelete }) {
+  const blank = { type: 'inbound', customer: '', pickup_location: '', destination: '', vehicle_reg: '', trailer_reg: '', transporter: '', driver: '', vessel: '', stack_dates: '', container_size: '', info: '', estimated_date: '', status: 'scheduled', title: '' };
+
+  const [expanded,   setExpanded]   = React.useState(!!isNew);
+  const [editing,    setEditing]    = React.useState(!!isNew);
+  const [draft,      setDraft]      = React.useState(isNew ? blank : { ...task });
+  const [saving,     setSaving]     = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
   const { isMobile } = useResponsive();
 
-  const whenMatch = t.due?.match(/(\d{1,2}:\d{2}|\d{1,2}h\d{2}|EOD|TBC)/i);
-  const dayMatch  = t.due?.match(/(today|tomorrow|wed|fri|mon|tue|thu|sat|sun)/i);
-  const when = whenMatch ? whenMatch[0] : (t.due?.split(' ')[0] || '—');
-  const dayLabel = dayMatch ? dayMatch[0] : '';
+  // Keep draft in sync when task updates from real-time (only when not editing)
+  React.useEffect(() => {
+    if (!editing && task) setDraft({ ...task });
+  }, [task, editing]);
 
-  const priorityColor = t.priority === 'high' ? '#FCA5A5' : t.priority === 'med' ? '#FCD68A' : 'var(--ink-3)';
-  const priorityLabel = t.priority === 'high' ? 'High' : t.priority === 'med' ? 'Med' : 'Low';
-  const completed = t.status === 'complete';
+  const set = (key, val) => setDraft(d => ({ ...d, [key]: val }));
 
-  const DeleteControls = () => confirming ? (
-    <>
-      <button onClick={() => { onDelete(t.id); setConfirming(false); }} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 600, background: 'rgba(252,165,165,0.15)', border: '1px solid rgba(252,165,165,0.35)', color: '#FCA5A5', borderRadius: 5, cursor: 'pointer' }}>Delete</button>
-      <button onClick={() => setConfirming(false)} style={{ padding: '3px 6px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--ink-3)', cursor: 'pointer' }}>Cancel</button>
-    </>
-  ) : (
-    <button onClick={() => setConfirming(true)} title="Delete task" style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', borderRadius: 6, color: 'var(--ink-4)', cursor: 'pointer' }}>
-      <Icons.trash size={14} stroke="var(--ink-4)" />
-    </button>
-  );
+  const save = async () => {
+    setSaving(true);
+    const fields = { ...draft, title: draft.customer || draft.title || 'Shipment' };
+    if (isNew) { await onSave(fields); }
+    else { await onUpdate(task.id, fields); setEditing(false); }
+    setSaving(false);
+  };
 
-  if (isMobile) return (
-    <div style={{ padding: '12px 14px', borderBottom: last ? 'none' : '1px solid var(--line)', display: 'flex', gap: 11, alignItems: 'flex-start', opacity: completed ? 0.6 : 1 }}>
-      <TaskCheckbox status={t.status} onClick={() => onToggle(t.id)} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: completed ? 'var(--ink-3)' : 'var(--ink-0)', textDecoration: completed ? 'line-through' : 'none', lineHeight: 1.35 }}>{t.title}</div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 11.5, color: t.overdue ? '#FCA5A5' : 'var(--ink-3)', fontWeight: t.overdue ? 700 : 400 }}>{t.due || '—'}{t.overdue ? ' · overdue' : ''}</span>
-          <span className="mono" style={{ fontSize: 10.5, color: priorityColor }}>{priorityLabel}</span>
+  const cancel = () => {
+    if (isNew) { onCancel(); return; }
+    setDraft({ ...task });
+    setEditing(false);
+  };
+
+  const st = STATUS_MAP[draft.status] || STATUS_MAP.scheduled;
+  const tp = TYPE_MAP[draft.type]    || TYPE_MAP.inbound;
+
+  const displayName = task?.customer || task?.title || '—';
+  const hasStructured = task?.customer || task?.vehicle_reg || task?.pickup_location;
+
+  // ── Input helper ────────────────────────────────────────────────────────────
+  const Field = ({ fkey, label, full }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, gridColumn: full ? '1 / -1' : undefined }}>
+      <div style={{ fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: 'var(--mono)' }}>{label}</div>
+      {editing ? (
+        <input value={draft[fkey] || ''} onChange={e => set(fkey, e.target.value)} placeholder={`—`}
+          style={{ background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, padding: '5px 8px', color: 'var(--ink-0)', fontSize: 13, outline: 'none', width: '100%' }} />
+      ) : (
+        <div style={{ fontSize: 13, color: (task?.[fkey] || '') ? 'var(--ink-0)' : 'var(--ink-4)' }}>
+          {task?.[fkey] || '—'}
         </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-        <DeleteControls />
-      </div>
+      )}
     </div>
   );
 
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '90px 28px 1fr 130px 116px 40px',
-      gap: 14, padding: '13px 16px',
-      borderBottom: last ? 'none' : '1px solid var(--line)',
-      alignItems: 'center',
-      opacity: completed ? 0.62 : 1,
-    }}>
-      {/* When */}
-      <div>
-        <div className="mono" style={{
-          fontSize: 16, fontWeight: 700,
-          color: t.overdue ? '#FCA5A5' : 'var(--ink-0)',
-          letterSpacing: -0.5, lineHeight: 1,
-        }}>{when}</div>
-        {dayLabel && dayLabel.toLowerCase() !== when.toLowerCase() && (
-          <div className="mono" style={{ fontSize: 10.5, color: t.overdue ? '#FCA5A5' : 'var(--ink-3)', marginTop: 4, textTransform: 'capitalize' }}>
-            {t.overdue ? `${dayLabel} · overdue` : dayLabel}
-          </div>
-        )}
-        {t.overdue && (!dayLabel || dayLabel.toLowerCase() === when.toLowerCase()) && (
-          <div className="mono" style={{ fontSize: 10.5, color: '#FCA5A5', marginTop: 4 }}>overdue</div>
-        )}
-      </div>
+    <div className="card" style={{ overflow: 'visible' }}>
 
-      {/* Checkbox */}
-      <TaskCheckbox status={t.status} onClick={() => onToggle(t.id)} />
+      {/* ── Header row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '11px 12px' : '12px 16px', cursor: editing ? 'default' : 'pointer' }}
+        onClick={() => !editing && setExpanded(e => !e)}>
 
-      {/* Title */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{
-          fontSize: 14, fontWeight: 600,
-          color: completed ? 'var(--ink-3)' : 'var(--ink-0)',
-          textDecoration: completed ? 'line-through' : 'none',
-          lineHeight: 1.35,
-        }}>{t.title}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
-          {t.extractedFrom && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink-3)' }}>
-              <Icons.spark size={11} stroke="#6FE3C2" />
-              from <span className="chip" style={{ marginLeft: -2 }}>{t.extractedFrom}</span>
-            </span>
+        {/* Type */}
+        {editing ? (
+          <select value={draft.type} onChange={e => set('type', e.target.value)} onClick={ev => ev.stopPropagation()}
+            style={{ padding: '4px 8px', background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--ink-0)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <option value="inbound">Inbound</option>
+            <option value="outbound">Outbound</option>
+          </select>
+        ) : (
+          <span style={{ fontSize: 10, fontWeight: 700, color: tp.color, background: `${tp.color}1A`, padding: '2px 8px', borderRadius: 4, border: `1px solid ${tp.color}40`, flexShrink: 0 }}>
+            {tp.label.toUpperCase()}
+          </span>
+        )}
+
+        {/* Name */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editing ? (
+            <input value={draft.customer} onChange={e => set('customer', e.target.value)} placeholder="Customer name"
+              onClick={ev => ev.stopPropagation()}
+              style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, padding: '5px 9px', color: 'var(--ink-0)', fontSize: 14, fontWeight: 600, outline: 'none' }} />
+          ) : (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-0)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {displayName}
+              </div>
+              {!isMobile && hasStructured && (
+                <div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+                  {[task?.vehicle_reg, task?.transporter, task?.estimated_date ? `Est: ${task.estimated_date}` : null].filter(Boolean).join(' · ')}
+                </div>
+              )}
+            </>
           )}
-          {completed && t.completedAt && (
-            <span className="mono" style={{ fontSize: 10.5, color: '#6FE3C2' }}>✓ {t.completedAt}</span>
+        </div>
+
+        {/* Status */}
+        {editing ? (
+          <select value={draft.status} onChange={e => set('status', e.target.value)} onClick={ev => ev.stopPropagation()}
+            style={{ padding: '5px 8px', background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, color: 'var(--ink-0)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+            {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        ) : (
+          <span style={{ fontSize: isMobile ? 11 : 12, fontWeight: 700, color: st.color, background: st.bg, padding: '3px 10px', borderRadius: 5, border: `1px solid ${st.border}`, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {st.label}
+          </span>
+        )}
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }} onClick={ev => ev.stopPropagation()}>
+          {editing ? (
+            <>
+              <button onClick={save} disabled={saving} style={{ padding: '5px 13px', background: 'var(--green)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                {saving ? '…' : 'Save'}
+              </button>
+              <button onClick={cancel} style={{ padding: '5px 8px', background: 'transparent', border: 'none', color: 'var(--ink-3)', fontSize: 12.5, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { setEditing(true); setExpanded(true); }} title="Edit"
+                style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', borderRadius: 6, color: 'var(--ink-3)', cursor: 'pointer', fontSize: 15 }}>
+                ✎
+              </button>
+              {confirming ? (
+                <>
+                  <button onClick={() => onDelete(task.id)} style={{ padding: '3px 8px', fontSize: 11, fontWeight: 600, background: 'var(--bad-soft)', border: '1px solid rgba(241,92,109,0.35)', color: '#FCA5A5', borderRadius: 5, cursor: 'pointer' }}>Delete</button>
+                  <button onClick={() => setConfirming(false)} style={{ padding: '3px 6px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--ink-3)', cursor: 'pointer' }}>✕</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirming(true)} title="Delete"
+                  style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', background: 'transparent', border: 'none', borderRadius: 6, color: 'var(--ink-4)', cursor: 'pointer' }}>
+                  <Icons.trash size={14} stroke="var(--ink-4)" />
+                </button>
+              )}
+              <span style={{ color: 'var(--ink-4)', fontSize: 13, userSelect: 'none' }}>{expanded ? '▲' : '▼'}</span>
+            </>
           )}
         </div>
       </div>
 
-      {/* Assignee */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        {assignee && <Avatar user={assignee} size={26} />}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {isMine ? 'You' : (assignee?.name.split(' ')[0] || '—')}
+      {/* ── Expanded body ── */}
+      {(expanded || editing) && (
+        <div style={{ borderTop: '1px solid var(--line)', padding: isMobile ? '12px' : '16px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 10 : '10px 28px' }}>
+            {SHIPMENT_FIELDS.map(({ key, label }) => (
+              <Field key={key} fkey={key} label={label} />
+            ))}
           </div>
-          <div className="mono" style={{ fontSize: 10, color: priorityColor, marginTop: 1 }}>{priorityLabel} priority</div>
+
+          {/* Info / Notes — full width */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: 'var(--mono)', marginBottom: 5 }}>Info / Notes</div>
+            {editing ? (
+              <textarea value={draft.info || ''} onChange={e => set('info', e.target.value)}
+                placeholder="Additional information…" rows={2}
+                style={{ width: '100%', background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, padding: '6px 8px', color: 'var(--ink-0)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit' }} />
+            ) : (
+              <div style={{ fontSize: 13, color: task?.info ? 'var(--ink-1)' : 'var(--ink-4)', fontStyle: task?.info ? 'normal' : 'italic' }}>
+                {task?.info || 'No notes'}
+              </div>
+            )}
+          </div>
+
+          {/* Footer actions */}
+          {!editing && (
+            <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+              {task?.chat && (
+                <button onClick={() => setRoute({ screen: 'chats', chatId: task.chat })} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px',
+                  background: 'var(--bg-3)', border: '1px solid var(--line-2)',
+                  color: 'var(--ink-1)', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                }}>
+                  <Icons.inbox size={11} stroke="var(--ink-1)" /> Open source chat
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Jump to chat */}
-      <button onClick={() => setRoute({ screen: 'chats', chatId: t.chat })} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: '5px 10px',
-        background: 'var(--bg-3)', border: '1px solid var(--line-2)',
-        color: 'var(--ink-1)', borderRadius: 7, fontSize: 11.5, fontWeight: 600,
-        cursor: 'pointer', justifySelf: 'start', whiteSpace: 'nowrap',
-      }}>
-        <Icons.inbox size={11} stroke="var(--ink-1)" /> Open chat
-      </button>
-
-      {/* Delete */}
-      <div style={{ justifySelf: 'end', display: 'flex', alignItems: 'center', gap: 4 }}>
-        <DeleteControls />
-      </div>
+      )}
     </div>
   );
 }
