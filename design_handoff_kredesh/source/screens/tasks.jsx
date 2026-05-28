@@ -180,6 +180,27 @@ const TYPE_MAP = {
   outbound: { label: 'Outbound', color: '#7CC4FF' },
 };
 
+// Defined outside ShipmentCard so React doesn't remount on every keystroke
+function ShipmentField({ label, value, editing, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <div style={{ fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: 'var(--mono)' }}>{label}</div>
+      {editing ? (
+        <input
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          placeholder="—"
+          style={{ background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, padding: '5px 8px', color: 'var(--ink-0)', fontSize: 13, outline: 'none', width: '100%' }}
+        />
+      ) : (
+        <div style={{ fontSize: 13, color: value ? 'var(--ink-0)' : 'var(--ink-4)' }}>
+          {value || '—'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShipmentCard({ task, isNew, setRoute, onSave, onCancel, onUpdate, onDelete }) {
   const blank = { type: 'inbound', customer: '', pickup_location: '', destination: '', vehicle_reg: '', trailer_reg: '', transporter: '', driver: '', vessel: '', stack_dates: '', container_size: '', info: '', estimated_date: '', status: 'scheduled', title: '' };
 
@@ -217,20 +238,6 @@ function ShipmentCard({ task, isNew, setRoute, onSave, onCancel, onUpdate, onDel
   const displayName = task?.customer || task?.title || '—';
   const hasStructured = task?.customer || task?.vehicle_reg || task?.pickup_location;
 
-  // ── Input helper ────────────────────────────────────────────────────────────
-  const Field = ({ fkey, label, full }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, gridColumn: full ? '1 / -1' : undefined }}>
-      <div style={{ fontSize: 10, color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: 'var(--mono)' }}>{label}</div>
-      {editing ? (
-        <input value={draft[fkey] || ''} onChange={e => set(fkey, e.target.value)} placeholder={`—`}
-          style={{ background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: 6, padding: '5px 8px', color: 'var(--ink-0)', fontSize: 13, outline: 'none', width: '100%' }} />
-      ) : (
-        <div style={{ fontSize: 13, color: (task?.[fkey] || '') ? 'var(--ink-0)' : 'var(--ink-4)' }}>
-          {task?.[fkey] || '—'}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="card" style={{ overflow: 'visible' }}>
@@ -323,7 +330,13 @@ function ShipmentCard({ task, isNew, setRoute, onSave, onCancel, onUpdate, onDel
         <div style={{ borderTop: '1px solid var(--line)', padding: isMobile ? '12px' : '16px 16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 10 : '10px 28px' }}>
             {SHIPMENT_FIELDS.map(({ key, label }) => (
-              <Field key={key} fkey={key} label={label} />
+              <ShipmentField
+                key={key}
+                label={label}
+                value={editing ? draft[key] : task?.[key]}
+                editing={editing}
+                onChange={val => set(key, val)}
+              />
             ))}
           </div>
 
