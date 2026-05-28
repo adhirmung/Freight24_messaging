@@ -5,18 +5,48 @@ function TasksScreen({ route, setRoute, user }) {
   const [tab, setTab] = React.useState('today');
   const [search, setSearch] = React.useState('');
 
+  const rowToTask = (t) => ({ ...t, chat: t.chat_id, extractedFrom: t.extracted_from, assignee: 'me' });
+
   // Load tasks from Supabase on mount
   React.useEffect(() => {
     sb.from('tasks').select('*').order('created_at', { ascending: false })
       .then(({ data }) => {
         if (data) {
-          const mapped = data.map(t => ({
-            ...t, chat: t.chat_id, extractedFrom: t.extracted_from, assignee: 'me',
-          }));
+          const mapped = data.map(rowToTask);
           setTasks(mapped);
           D.tasks = mapped;
         }
       });
+  }, []);
+
+  // Real-time subscription — new/updated/deleted tasks appear instantly
+  React.useEffect(() => {
+    const channel = sb.channel('tasks_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+        const t = rowToTask(payload.new);
+        setTasks(prev => {
+          if (prev.find(x => x.id === t.id)) return prev; // already exists
+          const updated = [t, ...prev];
+          D.tasks = updated;
+          return updated;
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+        setTasks(prev => {
+          const updated = prev.map(x => x.id === payload.new.id ? rowToTask(payload.new) : x);
+          D.tasks = updated;
+          return updated;
+        });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+        setTasks(prev => {
+          const updated = prev.filter(x => x.id !== payload.old.id);
+          D.tasks = updated;
+          return updated;
+        });
+      })
+      .subscribe();
+    return () => sb.removeChannel(channel);
   }, []);
 
   const buckets = {
@@ -59,7 +89,7 @@ function TasksScreen({ route, setRoute, user }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Tasks</h1>
-            <Pill tone="green"><span className="live-dot" style={{ marginRight: 4 }} /> Auto-extracted</Pill>
+            <Pill tone="green"><span className="live-dot" style={{ marginRight: 4 }} /> Live</Pill>
           </div>
           <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 3 }}>
             Action items pulled from chats · {tasks.length} total · {counts.overdue} overdue
