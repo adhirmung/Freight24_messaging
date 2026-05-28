@@ -103,11 +103,20 @@ function ChatsScreen({ route, setRoute, user, sbUser }) {
       ...(replyTo ? { replyTo } : {}),
     }]);
     // Persist
-    if (sbUser) {
-      const { data } = await sb.from('messages')
-        .insert({ chat_id: activeId, sender_id: sbUser.id, body: text })
-        .select('id').single();
-      if (data) setDbMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id } : m));
+    if (!sbUser) {
+      console.error('handleSend: sbUser is null — message not saved');
+      return;
+    }
+    const { data, error } = await sb.from('messages')
+      .insert({ chat_id: activeId, sender_id: sbUser.id, body: text })
+      .select('id').single();
+    if (error) {
+      console.error('Message insert failed:', error.message, error);
+      alert('Send failed: ' + error.message);
+      // Roll back optimistic message
+      setDbMessages(prev => prev.filter(m => m.id !== tempId));
+    } else if (data) {
+      setDbMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id } : m));
     }
   };
 
