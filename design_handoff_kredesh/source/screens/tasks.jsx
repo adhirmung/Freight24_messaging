@@ -37,7 +37,12 @@ function TasksScreen({ route, setRoute, user }) {
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const updateTask = async (id, changes) => {
-    await sb.from('tasks').update(changes).eq('id', id);
+    console.log('updateTask →', id, changes);
+    const { error } = await sb.from('tasks').update(changes).eq('id', id);
+    if (error) {
+      console.error('Task update error:', error);
+      alert('Save failed: ' + error.message);
+    }
   };
 
   const deleteTask = async (id) => {
@@ -220,7 +225,13 @@ function ShipmentCard({ task, isNew, setRoute, onSave, onCancel, onUpdate, onDel
 
   const save = async () => {
     setSaving(true);
-    const fields = { ...draft, title: draft.customer || draft.title || 'Shipment' };
+    // Only send real DB columns — strip client-side fields (chat, extractedFrom, assignee, id, created_at…)
+    const DB_COLS = ['title','status','priority','due','type','customer','pickup_location',
+      'destination','vehicle_reg','trailer_reg','transporter','driver','vessel',
+      'stack_dates','container_size','info','estimated_date'];
+    const fields = {};
+    DB_COLS.forEach(k => { fields[k] = draft[k] ?? null; });
+    fields.title = draft.customer || draft.title || 'Shipment';
     if (isNew) { await onSave(fields); }
     else { await onUpdate(task.id, fields); setEditing(false); }
     setSaving(false);

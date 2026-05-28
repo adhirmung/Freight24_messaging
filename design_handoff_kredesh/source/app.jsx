@@ -23,13 +23,10 @@ function GlobalExtractor({ sbUser }) {
         try {
           const result = await chatExtractWithClaude(text);
 
-          // ── Tasks (with dedup) ──────────────────────────────────────────────
+          // ── Tasks (upsert — unique constraint on chat_id+title prevents dups) ──
           if (result.tasks?.length) {
-            const { data: existing } = await sb.from('tasks').select('title').eq('chat_id', row.chat_id);
-            const seen = new Set((existing || []).map(t => (t.title || '').toLowerCase().trim()));
-            const fresh = result.tasks.filter(t => !seen.has((t.customer || t.title || '').toLowerCase().trim()));
-            if (fresh.length) {
-              await sb.from('tasks').insert(fresh.map(t => ({
+            await sb.from('tasks').upsert(
+              result.tasks.map(t => ({
                 chat_id:         row.chat_id,
                 title:           t.customer || t.title,
                 status:          t.status   || 'scheduled',
@@ -49,15 +46,58 @@ function GlobalExtractor({ sbUser }) {
                 container_size:  t.container_size  || null,
                 info:            t.info            || null,
                 estimated_date:  t.estimated_date  || null,
-              })));
-            }
+              })),
+              { onConflict: 'chat_id,title', ignoreDuplicates: true }
+            );
           }
 
-          // ── ETAs (with dedup) ───────────────────────────────────────────────
-          if (result.etas?.length) {
+          // ── ETAs: merge result.etas + loads + tasks with dates ────────────
+          const allEtas = [...(result.etas || [])];
+
+          // Source 1: loads that have a valid time (e.g. "15h00", "14:30")
+          for (const load of (result.loads || [])) {
+            const raw = (load.eta || '').trim();
+            if (!raw || raw === '—') continue;
+            const timeMatch = raw.match(/(\d{1,2})[h:](\d{2})/i);
+            if (!timeMatch) continue;
+            const at = timeMatch[1].padStart(2, '0') + ':' + timeMatch[2];
+            allEtas.push({
+              what:     load.cargo || load.vehicle || 'Load',
+              customer: load.customer || '—',
+              vehicle:  load.vehicle  || '—',
+              at,
+              dest:     '—',
+              kind:     load.direction === 'outbound' ? 'outbound' : 'inbound',
+              eta_date: today,
+              detail:   null,
+            });
+          }
+
+          // Source 2: structured tasks that have an estimated_date (no duplicate what+date)
+          for (const task of (result.tasks || [])) {
+            if (!task.estimated_date) continue;
+            const name = (task.customer || task.title || '').toLowerCase().trim();
+            const alreadyCovered = allEtas.some(e =>
+              (e.eta_date === task.estimated_date) &&
+              ((e.what || '').toLowerCase().includes(name) || name.includes((e.what || '').toLowerCase()))
+            );
+            if (alreadyCovered) continue;
+            allEtas.push({
+              what:     task.customer || task.title || 'Shipment',
+              customer: task.customer || '—',
+              vehicle:  task.vehicle_reg || '—',
+              at:       '—',
+              dest:     task.destination || '—',
+              kind:     task.type === 'outbound' ? 'outbound' : 'inbound',
+              eta_date: task.estimated_date,
+              detail:   task.info || null,
+            });
+          }
+
+          if (allEtas.length) {
             const { data: existingEtas } = await sb.from('etas').select('what, eta_date').eq('chat_id', row.chat_id);
             const seenEtas = new Set((existingEtas || []).map(e => `${(e.what||'').toLowerCase()}|${e.eta_date}`));
-            const freshEtas = result.etas.filter(e =>
+            const freshEtas = allEtas.filter(e =>
               !seenEtas.has(`${(e.what||'').toLowerCase()}|${e.eta_date || today}`)
             );
             if (freshEtas.length) {
