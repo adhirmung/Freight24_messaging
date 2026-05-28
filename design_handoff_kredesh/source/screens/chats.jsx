@@ -712,6 +712,7 @@ Analyze chat messages and return structured JSON with logistics fields.
 Terminology: Horse = truck cab, container IDs like FSCU8065100, DBN = Durban, JHB = Johannesburg, CPT = Cape Town.
 Cargo types: SLES, Allied, Slackwax, Caustic Soda, NIS slings.`;
 
+  const today = new Date().toISOString().slice(0, 10);
   const prompt = `Extract logistics information from these chat messages. Return ONLY valid JSON with no explanation:
 
 ${text}
@@ -720,11 +721,13 @@ Rules:
 - tasks: ONE task per message maximum. The task title must be the full verbatim message body, lightly cleaned (remove greetings like "Hi All"). Do NOT split a message into multiple tasks.
 - loads: extract every inbound/outbound load mentioned (trucks arriving, containers, deliveries, loadouts). One load object per movement.
 - fields: key structured data points (container IDs, vehicles, ETAs, customers, drivers).
+- etas: extract ONLY messages that mention a specific arrival/departure TIME (e.g. "arriving 14:30", "loading at 09:00", "ETA 15h00"). Each ETA needs a time. Skip vague ones like "arriving today" with no time. For eta_date use ISO format YYYY-MM-DD; if the message says "tomorrow" use the next day from today (${today}); if a day name (Monday, Friday etc.) use the nearest upcoming date.
 
 {
   "fields": [{"label": "Human label", "value": "extracted value", "icon": "pkg|pin2|clock|truck|user|warn|hash|shield", "tone": "ok|warn|bad"}],
   "tasks": [{"title": "Full message body cleaned", "priority": "high|med|low", "due": "Today|Tomorrow|specific time"}],
   "loads": [{"direction": "inbound|outbound", "cargo": "what is being moved", "vehicle": "truck/container ID or —", "eta": "time or —", "customer": "customer name or —", "status": "scheduled|en route|arrived|loaded out"}],
+  "etas": [{"what": "cargo/container description", "customer": "customer name or —", "vehicle": "truck/container ID or —", "at": "HH:MM or —", "dest": "destination or —", "kind": "inbound|outbound|visit", "eta_date": "YYYY-MM-DD", "detail": "any extra info or null"}],
   "summary": "One sentence summary",
   "confidence": 0-100
 }`;
@@ -839,6 +842,23 @@ function ExtractionPanel({ chat, messages }) {
           D.tasks.unshift(...newTasks);
           setChatTasks(D.tasks.filter(tt => tt.chat === chat.id));
         }
+      }
+
+      if (result.etas?.length) {
+        const etasToInsert = result.etas.map(e => ({
+          chat_id:        chat.id,
+          what:           e.what || 'Unknown',
+          customer:       e.customer || '—',
+          vehicle:        e.vehicle  || '—',
+          at:             e.at       || '—',
+          dest:           e.dest     || '—',
+          kind:           e.kind     || 'inbound',
+          status:         'scheduled',
+          eta_date:       e.eta_date || new Date().toISOString().slice(0, 10),
+          detail:         e.detail   || null,
+          extracted_from: chat.name  || chat.id,
+        }));
+        await sb.from('etas').insert(etasToInsert);
       }
 
       if (result.loads?.length) {
